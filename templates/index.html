@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Instagram Analyzer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #f5f0ff 0%, #fff0f5 100%);
+      min-height: 100vh;
+      padding: 32px 16px;
+      color: #2d2d2d;
+    }
+
+    .container { max-width: 680px; margin: 0 auto; }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, #c13584, #833ab4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 4px;
+    }
+    .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 24px; }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.875rem;
+      margin-bottom: 6px;
+      color: #444;
+    }
+    input[type="text"], input[type="date"] {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 6px;
+    }
+    input[type="text"]:focus, input[type="date"]:focus { border-color: #c13584; }
+
+    .date-row { display: flex; gap: 12px; }
+    .date-row > div { flex: 1; }
+
+    .hint { font-size: 0.78rem; color: #999; margin-bottom: 18px; }
+
+    .error-msg {
+      color: #e53935;
+      font-size: 0.83rem;
+      margin-bottom: 12px;
+      min-height: 18px;
+    }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    .btn-primary { background: linear-gradient(90deg, #c13584, #833ab4); color: #fff; }
+    .btn-primary:hover:not(:disabled) { opacity: 0.9; }
+
+    .btn-secondary { background: #f0f0f0; color: #333; border: 1.5px solid #ddd; margin-top: 10px; }
+    .btn-secondary:hover:not(:disabled) { background: #e4e4e4; }
+
+    .btn-download { background: #28a745; color: #fff; margin-top: 12px; display: none; }
+    .btn-download:hover:not(:disabled) { opacity: 0.88; }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 18px 0 6px;
+      color: #bbb;
+      font-size: 0.78rem;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      border-top: 1px solid #eee;
+    }
+
+    #progress-section { display: none; }
+
+    #log {
+      background: #0d1117;
+      color: #58d68d;
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 0.8rem;
+      padding: 16px;
+      border-radius: 10px;
+      height: 260px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.6;
+    }
+    #log .line-error { color: #ff6b6b; }
+    #log .line-done  { color: #ffd700; font-weight: bold; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Instagram Analyzer</h1>
+  <p class="subtitle">抓取公開 IG 帳號貼文資料、圖片文字辨識，自動同步至 Google Sheets</p>
+
+  <div class="card">
+    <label for="profile-url">Instagram 主頁 URL</label>
+    <input type="text" id="profile-url"
+           placeholder="">
+    <p class="hint">貼上完整的 Instagram 主頁連結（含 https://），如: https://www.instagram.com/yourspiritualcoffee</p>
+
+    <div class="date-row">
+      <div>
+        <label for="start-date">開始日期（選填）</label>
+        <input type="date" id="start-date">
+      </div>
+      <div>
+        <label for="end-date">結束日期（選填）</label>
+        <input type="date" id="end-date">
+      </div>
+    </div>
+    <p class="hint">不填則抓取全部貼文</p>
+
+    <div id="error-display" class="error-msg"></div>
+    <button class="btn btn-primary" id="start-btn" onclick="startJob()">下載貼文</button>
+
+    <div class="divider">或僅下載單筆貼文</div>
+
+    <label for="post-url">單筆貼文 URL</label>
+    <input type="text" id="post-url"
+           placeholder="">
+    <p class="hint">貼上單篇貼文的完整連結（含 /p/），如: https://www.instagram.com/p/DTVAWpUEzRe/</p>
+    <button class="btn btn-secondary" id="single-btn" onclick="startSingleJob()">下載單筆貼文資料</button>
+  </div>
+
+  <div class="card" id="progress-section">
+    <label style="margin-bottom:10px">執行進度</label>
+    <div id="log"></div>
+    <button class="btn btn-download" id="dl-btn" onclick="dlFile()">⬇ 下載 posts.csv</button>
+    <p class="hint" id="save-hint" style="margin-top:8px;display:none">
+      圖片已儲存到 <code>downloads/[帳號]/images/</code> 資料夾
+    </p>
+  </div>
+
+</div>
+
+<script>
+  let currentJobId = null;
+  let es = null;
+
+  function appendLog(text, cls) {
+    const log = document.getElementById('log');
+    const line = document.createElement('div');
+    if (cls) line.className = cls;
+    line.textContent = '› ' + text;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function resetProgress(showImageHint) {
+    document.getElementById('progress-section').style.display = 'block';
+    document.getElementById('dl-btn').style.display = 'none';
+    document.getElementById('dl-btn').disabled = false;
+    document.getElementById('dl-btn').textContent = '⬇ 下載 posts.csv';
+    document.getElementById('save-hint').style.display = 'none';
+    document.getElementById('log').innerHTML = '';
+    document.getElementById('save-hint').dataset.show = showImageHint ? '1' : '0';
+  }
+
+  function setButtonsDisabled(disabled) {
+    document.getElementById('start-btn').disabled = disabled;
+    document.getElementById('single-btn').disabled = disabled;
+  }
+
+  async function startJob() {
+    const profileUrl = document.getElementById('profile-url').value.trim();
+    const errDiv = document.getElementById('error-display');
+    errDiv.textContent = '';
+
+    if (!profileUrl) { errDiv.textContent = '請輸入 Instagram 主頁連結。'; return; }
+
+    setButtonsDisabled(true);
+    resetProgress(true);
+
+    try {
+      const startDate = document.getElementById('start-date').value;
+      const endDate   = document.getElementById('end-date').value;
+
+      const res = await fetch('/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_url: profileUrl, start_date: startDate, end_date: endDate })
+      });
+      const data = await res.json();
+
+      if (!res.ok) { errDiv.textContent = data.error || '無法啟動任務。'; setButtonsDisabled(false); return; }
+
+      currentJobId = data.job_id;
+      appendLog('任務已啟動，連接 Instagram 中...');
+      listenProgress(currentJobId);
+
+    } catch (err) {
+      errDiv.textContent = '網路錯誤：' + err.message;
+      setButtonsDisabled(false);
+    }
+  }
+
+  async function startSingleJob() {
+    const postUrl = document.getElementById('post-url').value.trim();
+    const errDiv = document.getElementById('error-display');
+    errDiv.textContent = '';
+
+    if (!postUrl) { errDiv.textContent = '請輸入單筆貼文連結。'; return; }
+    if (!postUrl.includes('/p/')) { errDiv.textContent = '貼文連結需包含 /p/，例如 https://www.instagram.com/p/ABC123/'; return; }
+
+    setButtonsDisabled(true);
+    resetProgress(false);
+
+    try {
+      const res = await fetch('/start-single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_url: postUrl })
+      });
+      const data = await res.json();
+
+      if (!res.ok) { errDiv.textContent = data.error || '無法啟動任務。'; setButtonsDisabled(false); return; }
+
+      currentJobId = data.job_id;
+      appendLog('單筆任務已啟動，連接 Instagram 中...');
+      listenProgress(currentJobId);
+
+    } catch (err) {
+      errDiv.textContent = '網路錯誤：' + err.message;
+      setButtonsDisabled(false);
+    }
+  }
+
+  function listenProgress(jobId) {
+    if (es) es.close();
+    es = new EventSource('/progress/' + jobId);
+
+    es.onmessage = function(event) {
+      const data = JSON.parse(event.data);
+      if (data.status === 'heartbeat') return;
+
+      const cls = data.status === 'error' ? 'line-error' : data.status === 'done' ? 'line-done' : null;
+      appendLog(data.message, cls);
+
+      if (data.status === 'done') {
+        es.close();
+        document.getElementById('dl-btn').style.display = 'block';
+        if (document.getElementById('save-hint').dataset.show === '1') {
+          document.getElementById('save-hint').style.display = 'block';
+        }
+        setButtonsDisabled(false);
+      } else if (data.status === 'error') {
+        es.close();
+        setButtonsDisabled(false);
+      }
+    };
+
+    es.onerror = function() {
+      appendLog('與伺服器的連線中斷，請重新整理頁面。', 'line-error');
+      es.close();
+      setButtonsDisabled(false);
+    };
+  }
+
+  function dlFile() {
+    if (!currentJobId) return;
+    const btn = document.getElementById('dl-btn');
+    btn.disabled = true;
+    btn.textContent = '已下載';
+    window.location.href = '/download/' + currentJobId;
+  }
+</script>
+</body>
+</html>
