@@ -74,7 +74,7 @@ def _background_job(job_id: str, profile_url: str, start_date: Optional[date] = 
         sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
         existing_short_codes: set = set()
         if sheet_id:
-            notify("檢查 Google Sheets 已有資料...")
+            notify("檢查 Google Sheets 現有資料...")
             existing_short_codes = fetch_existing_short_codes(sheet_id, username)
             if existing_short_codes:
                 notify(f"Google Sheets 已有 {len(existing_short_codes)} 筆，篩選新貼文中...")

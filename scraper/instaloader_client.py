@@ -45,7 +45,7 @@ def run_instagram_scrape(
     if start_date or end_date:
         s = start_date.isoformat() if start_date else "最早"
         e = end_date.isoformat() if end_date else "最新"
-        date_hint = f"（篩選：{s} ～ {e}）"
+        date_hint = f"（僅篩選：{s} ～ {e}）"
     notify(f"找到 @{username}，共 {total} 篇貼文，開始抓取... {date_hint}")
 
     posts = []
