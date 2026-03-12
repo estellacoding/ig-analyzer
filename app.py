@@ -23,7 +23,7 @@ from scraper.instaloader_client import run_instagram_scrape, run_single_post_scr
 from scraper.csv_writer import write_posts_csv
 from scraper.image_downloader import download_all_posts
 from scraper.ocr import extract_text_for_post
-from scraper.sheets_writer import write_posts_to_sheet
+from scraper.sheets_writer import write_posts_to_sheet, fetch_existing_short_codes
 
 app = Flask(__name__)
 
@@ -70,27 +70,48 @@ def _background_job(job_id: str, profile_url: str, start_date: Optional[date] = 
                 jobs[job_id]["status"] = "error"
             return
 
-        notify(f"共 {len(posts)} 篇貼文，下載圖片中...")
-        download_all_posts(posts, images_dir, progress_callback=notify)
+        # Check Google Sheets for already-existing posts before downloading
+        sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
+        existing_short_codes: set = set()
+        if sheet_id:
+            notify("檢查 Google Sheets 已有資料...")
+            existing_short_codes = fetch_existing_short_codes(sheet_id, username)
+            if existing_short_codes:
+                notify(f"Google Sheets 已有 {len(existing_short_codes)} 筆，篩選新貼文中...")
+
+        new_posts = [p for p in posts if p.get("short_code") not in existing_short_codes]
+
+        if not new_posts:
+            notify(f"篩選範圍內的 {len(posts)} 篇貼文皆已在 Google Sheets，無需更新。", status="done")
+            with jobs_lock:
+                jobs[job_id]["status"] = "done"
+                jobs[job_id]["csv_path"] = None
+            return
+
+        if existing_short_codes:
+            notify(f"共 {len(new_posts)} 篇新貼文（跳過 {len(posts) - len(new_posts)} 篇已有），下載圖片中...")
+        else:
+            notify(f"共 {len(new_posts)} 篇貼文，下載圖片中...")
+
+        download_all_posts(new_posts, images_dir, progress_callback=notify)
 
         notify("圖片文字辨識中（第一次需下載模型，請稍候）...")
-        for i, post in enumerate(posts):
+        for i, post in enumerate(new_posts):
             post["image_text"] = extract_text_for_post(
                 short_code=post.get("short_code", ""),
                 date_str=post.get("date", ""),
                 post_type=post.get("post_type", "Image"),
                 images_dir=images_dir,
             )
-            if (i + 1) % 10 == 0 or i == len(posts) - 1:
-                notify(f"OCR 進度：{i + 1}/{len(posts)}")
+            if (i + 1) % 10 == 0 or i == len(new_posts) - 1:
+                notify(f"OCR 進度：{i + 1}/{len(new_posts)}")
 
         posts_csv = output_dir / "posts.csv"
-        write_posts_csv(posts, posts_csv)
+        write_posts_csv(new_posts, posts_csv)
         notify("CSV 已寫入。")
 
-        sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
         if sheet_id:
-            write_posts_to_sheet(posts, sheet_id, username, progress_callback=notify)
+            write_posts_to_sheet(new_posts, sheet_id, username, progress_callback=notify)
         else:
             notify("未設定 GOOGLE_SHEET_ID，跳過 Google Sheets 同步。")
 
@@ -98,7 +119,7 @@ def _background_job(job_id: str, profile_url: str, start_date: Optional[date] = 
             jobs[job_id]["status"] = "done"
             jobs[job_id]["csv_path"] = str(posts_csv)
 
-        notify(f"完成！共 {len(posts)} 篇貼文，已存到 downloads/{username}/", status="done")
+        notify(f"完成！新增 {len(new_posts)} 篇貼文，已存到 downloads/{username}/", status="done")
 
     except Exception as exc:
         with jobs_lock:
@@ -127,6 +148,18 @@ def _background_single(job_id: str, post_url: str) -> None:
                 jobs[job_id]["status"] = "error"
             return
 
+        # Check if this post already exists in Google Sheets
+        sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
+        username = posts[0].get("owner_username", short_code)
+        if sheet_id:
+            existing = fetch_existing_short_codes(sheet_id, username)
+            if short_code in existing:
+                notify(f"此貼文已在 Google Sheets 中，無需更新。", status="done")
+                with jobs_lock:
+                    jobs[job_id]["status"] = "done"
+                    jobs[job_id]["csv_path"] = None
+                return
+
         notify("下載圖片中...")
         download_all_posts(posts, images_dir, progress_callback=notify)
 
@@ -142,9 +175,7 @@ def _background_single(job_id: str, post_url: str) -> None:
         write_posts_csv(posts, posts_csv)
         notify("CSV 已寫入。")
 
-        sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
         if sheet_id:
-            username = posts[0].get("owner_username", short_code)
             write_posts_to_sheet(posts, sheet_id, username, progress_callback=notify)
         else:
             notify("未設定 GOOGLE_SHEET_ID，跳過 Google Sheets 同步。")

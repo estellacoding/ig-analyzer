@@ -13,7 +13,8 @@ from gspread.exceptions import APIError
 
 from scraper.csv_writer import POSTS_COLUMNS
 
-CREDENTIALS_PATH = Path(os.getenv("GOOGLE_CREDENTIALS_PATH", "")) or Path(__file__).parent.parent / "credentials" / "service_account.json"
+_creds_env = os.getenv("GOOGLE_CREDENTIALS_PATH", "").strip()
+CREDENTIALS_PATH = Path(_creds_env) if _creds_env else Path(__file__).parent.parent / "credentials" / "service_account.json"
 
 # Seconds to sleep between batch writes to avoid hitting Sheets API rate limits
 WRITE_SLEEP = 1.2
@@ -55,6 +56,20 @@ def get_existing_short_codes(ws: gspread.Worksheet) -> set[str]:
 
     col_index = header.index("short_code")
     return {row[col_index] for row in all_values[1:] if len(row) > col_index and row[col_index]}
+
+
+def fetch_existing_short_codes(spreadsheet_id: str, username: str) -> set[str]:
+    """
+    Reads the sheet and returns the set of short_codes already present for this username.
+    Returns an empty set on any error (missing sheet, auth failure, etc.).
+    """
+    try:
+        gc = _get_client()
+        sh = gc.open_by_key(spreadsheet_id)
+        ws = sh.worksheet(username)
+        return get_existing_short_codes(ws)
+    except Exception:
+        return set()
 
 
 def write_posts_to_sheet(
