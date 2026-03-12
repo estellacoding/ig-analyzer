@@ -3,6 +3,7 @@ Google Sheets writer.
 Appends post data to a Google Sheet using a Service Account.
 Only writes rows whose short_code doesn't already exist in the sheet.
 """
+import os
 import time
 from pathlib import Path
 from typing import Callable, Optional
@@ -12,7 +13,7 @@ from gspread.exceptions import APIError
 
 from scraper.csv_writer import POSTS_COLUMNS
 
-CREDENTIALS_PATH = Path(__file__).parent.parent / "credentials" / "social-analyzer-490003-8e9b302db91d.json"
+CREDENTIALS_PATH = Path(os.getenv("GOOGLE_CREDENTIALS_PATH", "")) or Path(__file__).parent.parent / "credentials" / "service_account.json"
 
 # Seconds to sleep between batch writes to avoid hitting Sheets API rate limits
 WRITE_SLEEP = 1.2

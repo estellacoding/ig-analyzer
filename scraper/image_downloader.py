@@ -1,5 +1,5 @@
 """
-Downloads images and videos from CDN URLs returned by Apify.
+Downloads images and videos from CDN URLs.
 Files are saved to the profile's images/ subdirectory.
 """
 import requests
