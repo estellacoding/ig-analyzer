@@ -15,7 +15,8 @@
 ## 環境需求
 
 - macOS（OCR 使用 Apple Vision，僅支援 macOS）
-- Python 3.12+
+- Python 3.14+
+- Conda
 
 ## 安裝
 
@@ -23,8 +24,8 @@
 git clone https://github.com/estellacoding/ig-analyzer.git
 cd ig-analyzer
 
-python -m venv venv
-source venv/bin/activate
+conda create -n ig-analyzer python=3.14
+conda activate ig-analyzer
 pip install -r requirements.txt
 ```
 
@@ -57,7 +58,7 @@ GOOGLE_CREDENTIALS_PATH=credentials/你的金鑰檔名.json
 ## 使用方式
 
 ```bash
-source venv/bin/activate
+conda activate ig-analyzer
 python app.py
 ```
 
