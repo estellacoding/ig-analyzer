@@ -42,6 +42,7 @@ cp .env.example .env
 
 ```
 GOOGLE_SHEET_ID=你的 Google Sheets 試算表 ID
+GOOGLE_CREDENTIALS_PATH=credentials/你的金鑰檔名.json
 ```
 
 試算表 ID 從網址取得：`https://docs.google.com/spreadsheets/d/[這段]/edit`
@@ -50,7 +51,7 @@ GOOGLE_SHEET_ID=你的 Google Sheets 試算表 ID
 
 1. 至 [Google Cloud Console](https://console.cloud.google.com/) 建立 Service Account
 2. 下載 JSON 金鑰，放到 `credentials/` 資料夾
-3. 更新 `scraper/sheets_writer.py` 中的 `CREDENTIALS_PATH` 對應你的檔名
+3. 在 `.env` 的 `GOOGLE_CREDENTIALS_PATH` 填入對應的檔名
 4. 將 Service Account 的 email 加為 Google Sheet 的「編輯者」
 
 ## 使用方式
@@ -93,6 +94,8 @@ python app.py
 
 ### 檔案位置
 
+抓取主頁所有貼文：
+
 ```
 downloads/
 └── {帳號名稱}/
@@ -100,6 +103,16 @@ downloads/
     └── images/
         ├── 2024-01-01_ABC123.jpg
         └── 2024-01-02_DEF456_slide1.jpg
+```
+
+抓取單筆貼文：
+
+```
+downloads/
+└── {short_code}/
+    ├── posts.csv
+    └── images/
+        └── 2024-01-01_{short_code}.jpg
 ```
 
 ## 注意事項

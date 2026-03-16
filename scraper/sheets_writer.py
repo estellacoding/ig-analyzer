@@ -13,8 +13,7 @@ from gspread.exceptions import APIError
 
 from scraper.csv_writer import POSTS_COLUMNS
 
-_creds_env = os.getenv("GOOGLE_CREDENTIALS_PATH", "").strip()
-CREDENTIALS_PATH = Path(_creds_env) if _creds_env else Path(__file__).parent.parent / "credentials" / "social-analyzer-490003-8e9b302db91d.json"
+CREDENTIALS_PATH = Path(os.getenv("GOOGLE_CREDENTIALS_PATH", ""))
 
 # Seconds to sleep between batch writes to avoid hitting Sheets API rate limits
 WRITE_SLEEP = 1.2
