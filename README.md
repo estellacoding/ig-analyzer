@@ -20,8 +20,8 @@
 ## 安裝
 
 ```bash
-git clone https://github.com/estellacoding/social-analyzer.git
-cd social-analyzer
+git clone https://github.com/estellacoding/ig-analyzer.git
+cd ig-analyzer
 
 python -m venv venv
 source venv/bin/activate
