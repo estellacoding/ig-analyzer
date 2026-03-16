@@ -17,7 +17,10 @@ from datetime import date
 from pathlib import Path
 from typing import Optional
 
+from dotenv import load_dotenv
 from flask import Flask, Response, jsonify, render_template, request, send_file
+
+load_dotenv()
 
 from scraper.instaloader_client import run_instagram_scrape, run_single_post_scrape
 from scraper.csv_writer import write_posts_csv
