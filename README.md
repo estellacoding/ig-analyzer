@@ -1,16 +1,23 @@
 # Instagram Analyzer
 
-抓取公開 IG 帳號貼文資料、圖片文字辨識，自動同步至 Google Sheets。
+抓取公開 IG 帳號貼文與精選動態資料、圖片文字辨識，自動同步至 Google Sheets。
 
 ## 功能
 
+### 貼文分析
 - 抓取公開 Instagram 帳號的所有貼文資料（不需登入）
 - 支援篩選日期範圍，只抓取指定期間的貼文
 - 支援單筆貼文抓取
 - 自動下載貼文圖片與影片
 - 使用 Apple Vision OCR 辨識圖片中的文字（支援繁體中文）
-- 將結果匯出為 CSV（Excel/Google Sheets 相容）
+- 將結果匯出為 CSV（Excel 相容）
 - 自動同步至 Google Sheets，具備增量更新機制（只新增未存在的貼文）
+
+### 精選動態分析
+- 抓取指定精選動態中的所有圖片
+- 使用 Apple Vision OCR 辨識每張圖片的文字
+- 自動同步至 Google Sheets，分頁以精選動態標題命名（如「旅遊」、「美食」）
+- 需提供 Instagram Session ID（帳號本身不限公開或私人）
 
 ## 環境需求
 
@@ -64,20 +71,42 @@ python app.py
 
 開啟瀏覽器至 `http://localhost:8080`
 
-### 抓取主頁所有貼文
+---
+
+### 貼文 Tab
+
+#### 抓取主頁所有貼文
 
 1. 貼上 Instagram 主頁 URL，例如 `https://www.instagram.com/yourusername`
 2. 選填日期範圍（不填則抓全部）
-3. 點擊「下載貼文」
+3. 點擊「開始分析並存入 Sheets」
 
-### 抓取單筆貼文
+#### 抓取單筆貼文
 
 1. 貼上單篇貼文 URL，例如 `https://www.instagram.com/p/ABC123/`
-2. 點擊「下載單筆貼文資料」
+2. 點擊「分析單筆並存入 Sheets」
+
+---
+
+### 精選動態 Tab
+
+#### 取得 Instagram Session ID
+
+1. 瀏覽器開啟 [instagram.com](https://www.instagram.com) 並登入
+2. 右鍵 → **檢查**（或 F12）→ **Application** → **Cookies** → `https://www.instagram.com`
+3. 找到 `sessionid`，複製 Value 欄的值
+
+#### 抓取精選動態
+
+1. 貼上 Highlights URL，例如 `https://www.instagram.com/stories/highlights/18309799063249347/`
+2. 貼上 Session ID
+3. 點擊「開始分析並存入 Sheets」
+
+---
 
 ## 輸出格式
 
-### CSV 欄位
+### 貼文 — CSV 與 Google Sheets 欄位
 
 | 欄位 | 說明 |
 |------|------|
@@ -93,31 +122,43 @@ python app.py
 | image_url_1~3 | 圖片網址 |
 | image_text | OCR 辨識出的圖片文字 |
 
+Google Sheets 分頁名稱：帳號名稱（如 `yourusername`）
+
+### 精選動態 — Google Sheets 欄位
+
+| 欄位 | 說明 |
+|------|------|
+| highlight_id | Highlights 數字 ID |
+| item_id | 單張圖片的媒體 ID |
+| taken_at | 拍攝時間 |
+| image_url | 圖片網址 |
+| is_video | 是否為影片（是 / 否） |
+| ocr_text | OCR 辨識出的圖片文字 |
+
+Google Sheets 分頁名稱：精選動態標題（如 `旅遊`）
+
 ### 檔案位置
 
-抓取主頁所有貼文：
-
 ```
 downloads/
-└── {帳號名稱}/
-    ├── posts.csv
+├── {帳號名稱}/          ← 主頁貼文
+│   ├── posts.csv
+│   └── images/
+│       ├── 2024-01-01_ABC123.jpg
+│       └── 2024-01-02_DEF456_slide1.jpg
+│
+├── {short_code}/        ← 單筆貼文
+│   ├── posts.csv
+│   └── images/
+│
+└── highlights_{id}/     ← 精選動態
     └── images/
-        ├── 2024-01-01_ABC123.jpg
-        └── 2024-01-02_DEF456_slide1.jpg
-```
-
-抓取單筆貼文：
-
-```
-downloads/
-└── {short_code}/
-    ├── posts.csv
-    └── images/
-        └── 2024-01-01_{short_code}.jpg
+        └── {item_id}.jpg
 ```
 
 ## 注意事項
 
-- 僅支援**公開帳號**（不需登入，帳號安全無虞）
-- Instagram 有請求頻率限制，抓取大量貼文時速度較慢屬正常現象
+- **貼文分析**：僅支援公開帳號，不需登入
+- **精選動態**：需要提供 Session ID；Session ID 僅用於本地請求，不會被儲存或傳送至其他地方
+- Instagram 有請求頻率限制，抓取大量資料時速度較慢屬正常現象
 - OCR 第一次執行時需要初始化 Apple Vision，之後會較快

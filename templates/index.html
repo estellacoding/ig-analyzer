@@ -27,6 +27,40 @@
     }
     .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 24px; }
 
+    /* ── Tab bar ── */
+    .tab-bar {
+      display: flex;
+      background: #ede8f5;
+      padding: 4px;
+      border-radius: 14px;
+      margin-bottom: 20px;
+      gap: 4px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 11px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: transparent;
+      color: #888;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover:not(.active) { background: rgba(255,255,255,0.6); color: #555; }
+    .tab-btn.active {
+      background: linear-gradient(90deg, #c13584, #833ab4);
+      color: #fff;
+      box-shadow: 0 2px 10px rgba(193,53,132,0.35);
+    }
+
+    /* ── Tab panels ── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Card ── */
     .card {
       background: #fff;
       border-radius: 16px;
@@ -126,38 +160,64 @@
 <div class="container">
 
   <h1>Instagram Analyzer</h1>
-  <p class="subtitle">抓取公開 IG 帳號貼文資料、圖片文字辨識，自動同步至 Google Sheets</p>
+  <p class="subtitle">抓取公開 IG 帳號貼文與精選動態資料、圖片文字辨識，自動同步至 Google Sheets</p>
 
-  <div class="card">
-    <label for="profile-url">Instagram 主頁 URL</label>
-    <input type="text" id="profile-url"
-           placeholder="">
-    <p class="hint">貼上完整的 Instagram 主頁連結（含 https://），如: https://www.instagram.com/yourspiritualcoffee</p>
-
-    <div class="date-row">
-      <div>
-        <label for="start-date">開始日期（選填）</label>
-        <input type="date" id="start-date">
-      </div>
-      <div>
-        <label for="end-date">結束日期（選填）</label>
-        <input type="date" id="end-date">
-      </div>
-    </div>
-    <p class="hint">不填則抓取全部貼文</p>
-
-    <div id="error-display" class="error-msg"></div>
-    <button class="btn btn-primary" id="start-btn" onclick="startJob()">下載貼文</button>
-
-    <div class="divider">或僅下載單筆貼文</div>
-
-    <label for="post-url">單筆貼文 URL</label>
-    <input type="text" id="post-url"
-           placeholder="">
-    <p class="hint">貼上單篇貼文的完整連結（含 /p/），如: https://www.instagram.com/p/DTVAWpUEzRe/</p>
-    <button class="btn btn-secondary" id="single-btn" onclick="startSingleJob()">下載單筆貼文資料</button>
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="posts" onclick="switchTab('posts')">貼文</button>
+    <button class="tab-btn" data-tab="highlights" onclick="switchTab('highlights')">精選動態</button>
   </div>
 
+  <!-- ── Tab 1：貼文 ── -->
+  <div class="tab-panel active" id="tab-posts">
+    <div class="card">
+      <label for="profile-url">Instagram 主頁 URL</label>
+      <input type="text" id="profile-url" placeholder="">
+      <p class="hint">貼上完整的 Instagram 主頁連結（含 https://），如：https://www.instagram.com/yourspiritualcoffee</p>
+
+      <div class="date-row">
+        <div>
+          <label for="start-date">開始日期（選填）</label>
+          <input type="date" id="start-date">
+        </div>
+        <div>
+          <label for="end-date">結束日期（選填）</label>
+          <input type="date" id="end-date">
+        </div>
+      </div>
+      <p class="hint">不填則抓取全部貼文</p>
+
+      <div id="posts-error" class="error-msg"></div>
+      <button class="btn btn-primary" id="start-btn" onclick="startJob()">開始分析並存入 Sheets</button>
+
+      <div class="divider">或僅分析單筆貼文</div>
+
+      <label for="post-url">單筆貼文 URL</label>
+      <input type="text" id="post-url" placeholder="">
+      <p class="hint">貼上單篇貼文的完整連結（含 /p/），如：https://www.instagram.com/p/DTVAWpUEzRe/</p>
+      <button class="btn btn-secondary" id="single-btn" onclick="startSingleJob()">分析單筆並存入 Sheets</button>
+    </div>
+  </div>
+
+  <!-- ── Tab 2：精選動態 ── -->
+  <div class="tab-panel" id="tab-highlights">
+    <div class="card">
+      <label for="highlight-url">Instagram Highlights URL</label>
+      <input type="text" id="highlight-url" placeholder="">
+      <p class="hint">貼上 Highlights 完整連結，如：https://www.instagram.com/stories/highlights/18309799063249347/</p>
+
+      <label for="session-id">Instagram Session ID <span style="font-weight:400;color:#aaa">（必填）</span></label>
+      <input type="text" id="session-id" placeholder="貼上 sessionid cookie 值">
+      <p class="hint">
+        取得方式：瀏覽器開啟已登入的 instagram.com → 右鍵「檢查」→ Application → Cookies → instagram.com → 複製 <code>sessionid</code> 的值
+      </p>
+
+      <div id="highlights-error" class="error-msg"></div>
+      <button class="btn btn-primary" id="highlights-btn" onclick="startHighlightsJob()">開始分析並存入 Sheets</button>
+    </div>
+  </div>
+
+  <!-- ── 共用進度區 ── -->
   <div class="card" id="progress-section">
     <label style="margin-bottom:10px">執行進度</label>
     <div id="log"></div>
@@ -171,8 +231,19 @@
 
 <script>
   let currentJobId = null;
+  let currentTab = 'posts';
   let es = null;
 
+  // ── Tab switching ──
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(`tab-${tabId}`).classList.add('active');
+    currentTab = tabId;
+  }
+
+  // ── Log helpers ──
   function appendLog(text, cls) {
     const log = document.getElementById('log');
     const line = document.createElement('div');
@@ -182,30 +253,37 @@
     log.scrollTop = log.scrollHeight;
   }
 
-  function resetProgress(showImageHint) {
+  function resetProgress(showDownloadBtn, showImageHint) {
     document.getElementById('progress-section').style.display = 'block';
-    document.getElementById('dl-btn').style.display = 'none';
-    document.getElementById('dl-btn').disabled = false;
-    document.getElementById('dl-btn').textContent = '⬇ 下載 posts.csv';
+    const dlBtn = document.getElementById('dl-btn');
+    dlBtn.style.display = 'none';
+    dlBtn.disabled = false;
+    dlBtn.textContent = '⬇ 下載 posts.csv';
     document.getElementById('save-hint').style.display = 'none';
     document.getElementById('log').innerHTML = '';
+    // Store flags for listenProgress to use on done
+    document.getElementById('progress-section').dataset.showDownload = showDownloadBtn ? '1' : '0';
     document.getElementById('save-hint').dataset.show = showImageHint ? '1' : '0';
   }
 
-  function setButtonsDisabled(disabled) {
-    document.getElementById('start-btn').disabled = disabled;
-    document.getElementById('single-btn').disabled = disabled;
+  function setAllButtonsDisabled(disabled) {
+    ['start-btn', 'single-btn', 'highlights-btn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = disabled;
+    });
   }
 
+  // ── Tab 1：Profile scrape ──
   async function startJob() {
     const profileUrl = document.getElementById('profile-url').value.trim();
-    const errDiv = document.getElementById('error-display');
+    const errDiv = document.getElementById('posts-error');
     errDiv.textContent = '';
 
     if (!profileUrl) { errDiv.textContent = '請輸入 Instagram 主頁連結。'; return; }
+    if (!profileUrl.includes('instagram.com/')) { errDiv.textContent = '請輸入有效的 Instagram 連結。'; return; }
 
-    setButtonsDisabled(true);
-    resetProgress(true);
+    setAllButtonsDisabled(true);
+    resetProgress(true, true);
 
     try {
       const startDate = document.getElementById('start-date').value;
@@ -218,28 +296,28 @@
       });
       const data = await res.json();
 
-      if (!res.ok) { errDiv.textContent = data.error || '無法啟動任務。'; setButtonsDisabled(false); return; }
+      if (!res.ok) { errDiv.textContent = data.error || '無法啟動任務。'; setAllButtonsDisabled(false); return; }
 
       currentJobId = data.job_id;
       appendLog('任務已啟動，連接 Instagram 中...');
       listenProgress(currentJobId);
-
     } catch (err) {
       errDiv.textContent = '網路錯誤：' + err.message;
-      setButtonsDisabled(false);
+      setAllButtonsDisabled(false);
     }
   }
 
+  // ── Tab 1：Single post ──
   async function startSingleJob() {
     const postUrl = document.getElementById('post-url').value.trim();
-    const errDiv = document.getElementById('error-display');
+    const errDiv = document.getElementById('posts-error');
     errDiv.textContent = '';
 
     if (!postUrl) { errDiv.textContent = '請輸入單筆貼文連結。'; return; }
     if (!postUrl.includes('/p/')) { errDiv.textContent = '貼文連結需包含 /p/，例如 https://www.instagram.com/p/ABC123/'; return; }
 
-    setButtonsDisabled(true);
-    resetProgress(false);
+    setAllButtonsDisabled(true);
+    resetProgress(true, false);
 
     try {
       const res = await fetch('/start-single', {
@@ -249,18 +327,55 @@
       });
       const data = await res.json();
 
-      if (!res.ok) { errDiv.textContent = data.error || '無法啟動任務。'; setButtonsDisabled(false); return; }
+      if (!res.ok) { errDiv.textContent = data.error || '無法啟動任務。'; setAllButtonsDisabled(false); return; }
 
       currentJobId = data.job_id;
       appendLog('單筆任務已啟動，連接 Instagram 中...');
       listenProgress(currentJobId);
-
     } catch (err) {
       errDiv.textContent = '網路錯誤：' + err.message;
-      setButtonsDisabled(false);
+      setAllButtonsDisabled(false);
     }
   }
 
+  // ── Tab 2：Highlights OCR ──
+  async function startHighlightsJob() {
+    const highlightUrl = document.getElementById('highlight-url').value.trim();
+    const errDiv = document.getElementById('highlights-error');
+    errDiv.textContent = '';
+
+    if (!highlightUrl) { errDiv.textContent = '請輸入 Instagram Highlights 連結。'; return; }
+    if (!highlightUrl.includes('/stories/highlights/')) {
+      errDiv.textContent = '連結需包含 /stories/highlights/，例如 https://www.instagram.com/stories/highlights/123.../';
+      return;
+    }
+
+    setAllButtonsDisabled(true);
+    resetProgress(false, false);
+
+    try {
+      const sessionId = document.getElementById('session-id').value.trim();
+      if (!sessionId) { errDiv.textContent = '請填入 Instagram Session ID。'; setAllButtonsDisabled(false); return; }
+
+      const res = await fetch('/start-highlights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ highlight_url: highlightUrl, session_id: sessionId })
+      });
+      const data = await res.json();
+
+      if (!res.ok) { errDiv.textContent = data.error || '無法啟動任務。'; setAllButtonsDisabled(false); return; }
+
+      currentJobId = data.job_id;
+      appendLog('Highlights 任務已啟動...');
+      listenProgress(currentJobId);
+    } catch (err) {
+      errDiv.textContent = '網路錯誤：' + err.message;
+      setAllButtonsDisabled(false);
+    }
+  }
+
+  // ── Shared SSE progress listener ──
   function listenProgress(jobId) {
     if (es) es.close();
     es = new EventSource('/progress/' + jobId);
@@ -274,21 +389,24 @@
 
       if (data.status === 'done') {
         es.close();
-        document.getElementById('dl-btn').style.display = 'block';
+        const section = document.getElementById('progress-section');
+        if (section.dataset.showDownload === '1') {
+          document.getElementById('dl-btn').style.display = 'block';
+        }
         if (document.getElementById('save-hint').dataset.show === '1') {
           document.getElementById('save-hint').style.display = 'block';
         }
-        setButtonsDisabled(false);
+        setAllButtonsDisabled(false);
       } else if (data.status === 'error') {
         es.close();
-        setButtonsDisabled(false);
+        setAllButtonsDisabled(false);
       }
     };
 
     es.onerror = function() {
       appendLog('與伺服器的連線中斷，請重新整理頁面。', 'line-error');
       es.close();
-      setButtonsDisabled(false);
+      setAllButtonsDisabled(false);
     };
   }
 

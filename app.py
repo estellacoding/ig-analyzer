@@ -24,9 +24,10 @@ load_dotenv()
 
 from scraper.instaloader_client import run_instagram_scrape, run_single_post_scrape
 from scraper.csv_writer import write_posts_csv
-from scraper.image_downloader import download_all_posts
-from scraper.ocr import extract_text_for_post
-from scraper.sheets_writer import write_posts_to_sheet, fetch_existing_short_codes
+from scraper.image_downloader import download_all_posts, _download_one
+from scraper.ocr import extract_text_for_post, extract_text
+from scraper.sheets_writer import write_posts_to_sheet, fetch_existing_short_codes, write_highlights_to_sheet
+from scraper.highlights_scraper import extract_highlight_id, fetch_highlight_items
 
 app = Flask(__name__)
 
@@ -195,6 +196,81 @@ def _background_single(job_id: str, post_url: str) -> None:
         notify(f"錯誤：{exc}", status="error")
 
 
+def _background_highlights(job_id: str, highlight_url: str, session_id: str = "") -> None:
+    q = jobs[job_id]["queue"]
+
+    def notify(message: str, status: str = "progress") -> None:
+        q.put(json.dumps({"status": status, "message": message}))
+
+    try:
+        highlight_id = extract_highlight_id(highlight_url)
+        notify(f"Highlight ID：{highlight_id}")
+
+        output_dir = DOWNLOADS_DIR / f"highlights_{highlight_id}"
+        images_dir = output_dir / "images"
+        images_dir.mkdir(parents=True, exist_ok=True)
+
+        title, items = fetch_highlight_items(highlight_id, session_id=session_id, progress_callback=notify)
+
+        if not items:
+            notify("找不到任何 Highlight 項目。", status="error")
+            with jobs_lock:
+                jobs[job_id]["status"] = "error"
+            return
+
+        # Download images (use thumbnail for videos)
+        notify(f"下載 {len(items)} 張圖片中...")
+        fail_count = 0
+        for i, item in enumerate(items):
+            url = item["image_url"]
+            filename = f"{item['item_id']}.jpg"
+            save_path = images_dir / filename
+            item["_local_path"] = save_path
+
+            if url:
+                ok = _download_one(url, save_path)
+                if not ok:
+                    fail_count += 1
+
+            if (i + 1) % 10 == 0 or i == len(items) - 1:
+                notify(
+                    f"下載進度：{i + 1}/{len(items)}"
+                    + (f"（{fail_count} 失敗）" if fail_count else "")
+                )
+
+        # OCR — skip video items (only thumbnail downloaded, no meaningful text)
+        notify("圖片文字辨識中...")
+        for i, item in enumerate(items):
+            local_path = item.get("_local_path")
+            if local_path and not item["is_video"] and local_path.exists():
+                item["ocr_text"] = extract_text(local_path)
+            else:
+                item["ocr_text"] = ""
+
+            if (i + 1) % 10 == 0 or i == len(items) - 1:
+                notify(f"OCR 進度：{i + 1}/{len(items)}")
+
+        # Write to Google Sheets
+        sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
+        if sheet_id:
+            write_highlights_to_sheet(highlight_id, title, items, sheet_id, progress_callback=notify)
+        else:
+            notify("未設定 GOOGLE_SHEET_ID，跳過 Google Sheets 同步。")
+
+        with jobs_lock:
+            jobs[job_id]["status"] = "done"
+
+        notify(
+            f"完成！{len(items)} 個項目已存入 Google Sheets（分頁：{title}）",
+            status="done",
+        )
+
+    except Exception as exc:
+        with jobs_lock:
+            jobs[job_id]["status"] = "error"
+        notify(f"錯誤：{exc}", status="error")
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -232,6 +308,23 @@ def start_single_job():
         jobs[job_id] = {"queue": queue.Queue(), "status": "running", "csv_path": None}
 
     threading.Thread(target=_background_single, args=(job_id, post_url), daemon=True).start()
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/start-highlights", methods=["POST"])
+def start_highlights_job():
+    data = request.get_json() or {}
+    highlight_url = data.get("highlight_url", "").strip()
+    session_id = data.get("session_id", "").strip()
+
+    if not highlight_url or "instagram.com/stories/highlights/" not in highlight_url:
+        return jsonify({"error": "請輸入有效的 Instagram Highlights 連結。"}), 400
+
+    job_id = str(uuid.uuid4())
+    with jobs_lock:
+        jobs[job_id] = {"queue": queue.Queue(), "status": "running", "csv_path": None}
+
+    threading.Thread(target=_background_highlights, args=(job_id, highlight_url, session_id), daemon=True).start()
     return jsonify({"job_id": job_id})
 
 

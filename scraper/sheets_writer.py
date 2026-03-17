@@ -5,6 +5,7 @@ Only writes rows whose short_code doesn't already exist in the sheet.
 """
 import os
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -12,6 +13,8 @@ import gspread
 from gspread.exceptions import APIError
 
 from scraper.csv_writer import POSTS_COLUMNS
+
+HIGHLIGHTS_COLUMNS = ["highlight_id", "item_id", "taken_at", "image_url", "is_video", "ocr_text"]
 
 CREDENTIALS_PATH = Path(os.getenv("GOOGLE_CREDENTIALS_PATH", ""))
 
@@ -114,4 +117,95 @@ def write_posts_to_sheet(
         time.sleep(WRITE_SLEEP)
 
     notify(f"Google Sheets 完成，新增了 {written} 筆貼文。")
+    return written
+
+
+def _sanitize_sheet_name(name: str) -> str:
+    """Removes characters not allowed in Google Sheets tab names and trims to 100 chars."""
+    import re as _re
+    sanitized = _re.sub(r'[\\/*?\[\]:]', '', name).strip()
+    return sanitized[:100] if sanitized else "highlights"
+
+
+def write_highlights_to_sheet(
+    highlight_id: str,
+    title: str,
+    items: list[dict],
+    spreadsheet_id: str,
+    progress_callback: Optional[Callable] = None,
+) -> int:
+    """
+    Writes highlight OCR results to a worksheet named after the highlight title.
+    Skips item_ids that already exist in the sheet.
+    Returns the number of rows written.
+    """
+    def notify(msg: str) -> None:
+        if progress_callback:
+            progress_callback(msg)
+
+    if not items:
+        return 0
+
+    tab_name = _sanitize_sheet_name(title)
+    notify(f"連接 Google Sheets（分頁：{tab_name}）...")
+
+    gc = _get_client()
+    sh = gc.open_by_key(spreadsheet_id)
+
+    try:
+        ws = sh.worksheet(tab_name)
+    except gspread.exceptions.WorksheetNotFound:
+        ws = sh.add_worksheet(title=tab_name, rows=5000, cols=len(HIGHLIGHTS_COLUMNS))
+        ws.append_row(HIGHLIGHTS_COLUMNS, value_input_option="RAW")
+        time.sleep(WRITE_SLEEP)
+
+    # Avoid duplicates by checking existing item_ids
+    existing_ids: set[str] = set()
+    try:
+        all_values = ws.get_all_values()
+        if len(all_values) >= 2:
+            header = all_values[0]
+            if "item_id" in header:
+                col_idx = header.index("item_id")
+                existing_ids = {
+                    row[col_idx]
+                    for row in all_values[1:]
+                    if len(row) > col_idx and row[col_idx]
+                }
+    except APIError:
+        pass
+
+    new_items = [it for it in items if it.get("item_id") not in existing_ids]
+    if not new_items:
+        notify("所有資料已是最新，無需新增。")
+        return 0
+
+    notify(f"準備新增 {len(new_items)} 筆資料...")
+
+    batch_size = 50
+    written = 0
+    for i in range(0, len(new_items), batch_size):
+        batch = new_items[i : i + batch_size]
+        rows = []
+        for it in batch:
+            taken_at_ts = it.get("taken_at", 0)
+            taken_at_str = (
+                datetime.fromtimestamp(taken_at_ts).strftime("%Y-%m-%d %H:%M:%S")
+                if taken_at_ts
+                else ""
+            )
+            rows.append([
+                highlight_id,
+                str(it.get("item_id", "")),
+                taken_at_str,
+                str(it.get("image_url", "")),
+                "是" if it.get("is_video") else "否",
+                str(it.get("ocr_text", "")),
+            ])
+        ws.append_rows(rows, value_input_option="RAW")
+        written += len(batch)
+        notify(f"Google Sheets 寫入進度：{written}/{len(new_items)}")
+        time.sleep(WRITE_SLEEP)
+
+    notify(f"Google Sheets 完成，新增了 {written} 筆資料。")
     return written
